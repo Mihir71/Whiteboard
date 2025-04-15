@@ -10,7 +10,7 @@ export const initializeSocket = () => {
   }
 
   if (!socket) {
-    socket = io("http://localhost:5000", {
+    socket = io("https://whiteboard-5lyf.onrender.com", {
       auth: {
         token: `Bearer ${token}`,
       },

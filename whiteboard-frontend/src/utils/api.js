@@ -1,7 +1,7 @@
 // utils/api.js
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:5000/api/canvas"; 
+const API_BASE_URL = "https://whiteboard-5lyf.onrender.com/api/canvas"; 
 
 const token = localStorage.getItem('whiteboard_user_token')
 const canvasId = localStorage.getItem('canvas_id')

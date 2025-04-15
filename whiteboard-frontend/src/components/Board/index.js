@@ -95,7 +95,7 @@ function Board({ id }) {
 
           // Then fetch from server
           const response = await axios.get(
-            `http://localhost:5000/api/canvas/load/${id}`,
+            `https://whiteboard-5lyf.onrender.com/api/canvas/load/${id}`,
             {
               headers: { Authorization: `Bearer ${token}` },
             }

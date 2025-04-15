@@ -56,7 +56,7 @@ const Sidebar = () => {
       // Then fetch from server to ensure we have the latest data
       if (token) {
         axios
-          .get(`http://localhost:5000/api/canvas/${id}`, {
+          .get(`https://whiteboard-5lyf.onrender.com/api/canvas/${id}`, {
             headers: {
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
@@ -93,7 +93,7 @@ const Sidebar = () => {
         return;
       }
       const response = await axios.get(
-        "http://localhost:5000/api/canvas/list",
+        "https://whiteboard-5lyf.onrender.com/api/canvas/list",
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -158,7 +158,7 @@ const Sidebar = () => {
     try {
       const canvasName = generateRandomName();
       const response = await axios.post(
-        "http://localhost:5000/api/canvas/create",
+        "https://whiteboard-5lyf.onrender.com/api/canvas/create",
         { name: canvasName },
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -191,7 +191,7 @@ const Sidebar = () => {
       // Try to update on the server in the background
       axios({
         method: "put",
-        url: `http://localhost:5000/api/canvas/rename/${canvasId}`,
+        url: `https://whiteboard-5lyf.onrender.com/api/canvas/rename/${canvasId}`,
         data: { name: newName },
         headers: {
           Authorization: `Bearer ${token}`,
@@ -226,7 +226,7 @@ const Sidebar = () => {
 
   const handleDeleteCanvas = async (id) => {
     try {
-      await axios.delete(`http://localhost:5000/api/canvas/delete/${id}`, {
+      await axios.delete(`https://whiteboard-5lyf.onrender.com/api/canvas/delete/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       fetchCanvases();
@@ -244,7 +244,7 @@ const Sidebar = () => {
       }
 
       const response = await axios.get(
-        `http://localhost:5000/api/canvas/${id}`,
+        `https://whiteboard-5lyf.onrender.com/api/canvas/${id}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -297,7 +297,7 @@ const Sidebar = () => {
       setSuccess(""); // Clear previous success message
 
       const response = await axios.put(
-        `http://localhost:5000/api/canvas/share/${canvasId}`,
+        `https://whiteboard-5lyf.onrender.com/api/canvas/share/${canvasId}`,
         { email },
         {
           headers: { Authorization: `Bearer ${token}` },
