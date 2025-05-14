@@ -44,6 +44,12 @@ const boardReducer = (state, action) => {
       const { clientX, clientY } = action.payload;
       const newElements = [...state.elements];
       const index = state.elements.length - 1;
+
+      // Check if there are any elements and if the index is valid
+      if (index < 0 || !newElements[index]) {
+        return state;
+      }
+
       const { type } = newElements[index];
       switch (type) {
         case TOOL_ITEMS.LINE:
@@ -63,19 +69,19 @@ const boardReducer = (state, action) => {
             elements: newElements,
           };
         case TOOL_ITEMS.BRUSH:
+          if (!newElements[index].points) {
+            newElements[index].points = [];
+          }
           newElements[index].points = [
             ...newElements[index].points,
             { x: clientX, y: clientY },
           ];
-          // newElements[index].path = new Path2D(
-          //   getSvgPathFromStroke(getStroke(newElements[index].points))
-          // );
           return {
             ...state,
             elements: newElements,
           };
         default:
-          throw new Error("Type not recognized");
+          return state;
       }
     }
     case BOARD_ACTIONS.DRAW_UP: {
@@ -166,17 +172,23 @@ const boardReducer = (state, action) => {
       return {
         ...state,
         canvasId: action.payload.canvasId,
+        elements: [],
+        history: [[]],
+        index: 0,
       };
     case BOARD_ACTIONS.SET_CANVAS_ELEMENTS:
       return {
         ...state,
-        elements: action.payload.elements,
+        elements: action.payload.elements || [],
+        history: [action.payload.elements || []],
+        index: 0,
       };
 
     case BOARD_ACTIONS.SET_HISTORY:
       return {
         ...state,
-        history: [action.payload.elements],
+        history: [action.payload.elements || []],
+        index: 0,
       };
 
     case BOARD_ACTIONS.SET_USER_LOGIN_STATUS:
@@ -272,25 +284,32 @@ const BoardProvider = ({ children }) => {
       return;
     }
 
-    socket.emit("joinCanvas", { canvasId: boardState.canvasId });
+    if (boardState.canvasId) {
+      console.log("Joining canvas:", boardState.canvasId);
+      socket.emit("joinCanvas", { canvasId: boardState.canvasId });
 
-    socket.on("unauthorized", (error) => {
-      console.error("Socket authentication error:", error);
-    });
+      socket.on("unauthorized", (error) => {
+        console.error("Socket authentication error:", error);
+      });
 
-    socket.on("loadCanvas", (elements) => {
-      setElements(elements);
-    });
+      socket.on("loadCanvas", (elements) => {
+        console.log("Loading canvas elements:", elements);
+        setElements(elements || []);
+      });
 
-    socket.on("receiveDrawingUpdate", (elements) => {
-      setElements(elements);
-    });
+      socket.on("receiveDrawingUpdate", (elements) => {
+        console.log("Received drawing update:", elements);
+        setElements(elements || []);
+      });
+    }
 
     return () => {
-      socket.off("unauthorized");
-      socket.off("loadCanvas");
-      socket.off("receiveDrawingUpdate");
-      disconnectSocket();
+      if (socket) {
+        socket.off("unauthorized");
+        socket.off("loadCanvas");
+        socket.off("receiveDrawingUpdate");
+        disconnectSocket();
+      }
     };
   }, [boardState.canvasId]);
 

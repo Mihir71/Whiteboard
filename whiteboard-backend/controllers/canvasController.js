@@ -5,8 +5,10 @@ const mongoose = require("mongoose");
 // Create a new canvas
 exports.createCanvas = async (req, res) => {
   try {
+    console.log("Creating new canvas...");
     const userId = req.userId; // Get the authenticated user ID
     const { name } = req.body;
+    console.log("Canvas creation request:", { userId, name });
 
     const newCanvas = new Canvas({
       owner: userId,
@@ -15,12 +17,16 @@ exports.createCanvas = async (req, res) => {
       name: name || "",
     });
 
+    console.log("New canvas object created:", newCanvas);
     await newCanvas.save();
+    console.log("Canvas saved to database:", newCanvas._id);
+
     res.status(201).json({
       message: "Canvas created successfully",
       canvasId: newCanvas._id,
     });
   } catch (error) {
+    console.error("Error creating canvas:", error);
     res
       .status(500)
       .json({ error: "Failed to create canvas", details: error.message });
@@ -32,27 +38,35 @@ exports.updateCanvas = async (req, res) => {
   try {
     const { canvasId, elements } = req.body;
     const userId = req.userId;
-    console.log("canvas id ", canvasId);
+    console.log("Updating canvas:", { canvasId, userId });
 
-    const canvas = await Canvas.findById(canvasId);
+    // Use findOneAndUpdate instead of find and save
+    const canvas = await Canvas.findOneAndUpdate(
+      { _id: canvasId },
+      { $set: { elements: elements } },
+      { new: true, runValidators: true }
+    );
+
     if (!canvas) {
+      console.log("Canvas not found:", canvasId);
       return res.status(404).json({ error: "Canvas not found" });
     }
 
     // Ensure only the owner or shared users can update
     if (canvas.owner.toString() !== userId && !canvas.shared.includes(userId)) {
+      console.log("Unauthorized update attempt:", {
+        canvasOwner: canvas.owner,
+        userId,
+      });
       return res
         .status(403)
         .json({ error: "Unauthorized to update this canvas" });
     }
 
-    canvas.elements = elements;
-    await canvas.save();
-
-    console.log("saved");
-
+    console.log("Canvas updated successfully:", canvasId);
     res.json({ message: "Canvas updated successfully" });
   } catch (error) {
+    console.error("Error updating canvas:", error);
     res
       .status(500)
       .json({ error: "Failed to update canvas", details: error.message });

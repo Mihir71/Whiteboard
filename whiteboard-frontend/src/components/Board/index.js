@@ -53,17 +53,33 @@ function Board({ id }) {
 
   useEffect(() => {
     if (socket && id) {
-      // Join the canvas room (no need for userId)
+      // Join the canvas room
       socket.emit("joinCanvas", { canvasId: id });
 
       // Listen for updates from other users
       socket.on("receiveDrawingUpdate", (updatedElements) => {
         setElements(updatedElements);
+        // Save to localStorage to persist the changes
+        localStorage.setItem(
+          `canvas_drawings_${id}`,
+          JSON.stringify({
+            elements: updatedElements,
+            history: updatedElements,
+          })
+        );
       });
 
       // Load initial canvas data
       socket.on("loadCanvas", (initialElements) => {
         setElements(initialElements);
+        // Save to localStorage to persist the changes
+        localStorage.setItem(
+          `canvas_drawings_${id}`,
+          JSON.stringify({
+            elements: initialElements,
+            history: initialElements,
+          })
+        );
       });
 
       socket.on("unauthorized", (data) => {
@@ -84,18 +100,14 @@ function Board({ id }) {
     const fetchCanvasData = async () => {
       if (id && token) {
         try {
-          // First try to load from localStorage
-          const savedCanvas = localStorage.getItem(`canvas_drawings_${id}`);
-          if (savedCanvas) {
-            const { elements: savedElements, history: savedHistory } =
-              JSON.parse(savedCanvas);
-            setElements(savedElements);
-            setHistory(savedHistory);
-          }
+          // Clear any existing canvas data first
+          setElements([]);
+          setHistory([]);
+          localStorage.removeItem(`canvas_drawings_${id}`);
 
-          // Then fetch from server
+          // Fetch from server
           const response = await axios.get(
-            `https://whiteboard-5lyf.onrender.com/api/canvas/load/${id}`,
+            `http://localhost:5000/api/canvas/load/${id}`,
             {
               headers: { Authorization: `Bearer ${token}` },
             }
@@ -103,20 +115,28 @@ function Board({ id }) {
 
           if (response.data) {
             setCanvasId(id);
-            setElements(response.data.elements || []);
-            setHistory(response.data.history || []);
+            const newElements = response.data.elements || [];
+            const newHistory = response.data.history || [];
+
+            setElements(newElements);
+            setHistory(newHistory);
 
             // Save to localStorage
             localStorage.setItem(
               `canvas_drawings_${id}`,
               JSON.stringify({
-                elements: response.data.elements || [],
-                history: response.data.history || [],
+                elements: newElements,
+                history: newHistory,
               })
             );
           }
         } catch (error) {
           console.error("Error loading canvas:", error);
+          if (error.response?.status === 404) {
+            console.log("Canvas not found, initializing empty canvas");
+            setElements([]);
+            setHistory([]);
+          }
         }
       }
     };
@@ -126,7 +146,9 @@ function Board({ id }) {
 
   // Save canvas state whenever elements change
   useEffect(() => {
+    let updateTimeout;
     if (id && elements.length > 0) {
+      // Save to localStorage
       localStorage.setItem(
         `canvas_drawings_${id}`,
         JSON.stringify({
@@ -134,8 +156,69 @@ function Board({ id }) {
           history: elements,
         })
       );
+
+      // Emit the update to other users
+      if (socket) {
+        socket.emit("drawingUpdate", { canvasId: id, elements });
+      }
+
+      // Debounce the server update
+      clearTimeout(updateTimeout);
+      updateTimeout = setTimeout(async () => {
+        try {
+          const response = await axios.put(
+            `http://localhost:5000/api/canvas/update`,
+            { canvasId: id, elements },
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            }
+          );
+
+          if (response.status !== 200) {
+            throw new Error("Failed to update canvas");
+          }
+        } catch (error) {
+          console.error("Error updating canvas:", error);
+
+          // Only try to reload if it's not a 404 error
+          if (error.response?.status !== 404) {
+            try {
+              const response = await axios.get(
+                `http://localhost:5000/api/canvas/load/${id}`,
+                {
+                  headers: { Authorization: `Bearer ${token}` },
+                }
+              );
+
+              if (response.data) {
+                setElements(response.data.elements || []);
+                setHistory(response.data.history || []);
+
+                // Update localStorage with the reloaded data
+                localStorage.setItem(
+                  `canvas_drawings_${id}`,
+                  JSON.stringify({
+                    elements: response.data.elements || [],
+                    history: response.data.history || [],
+                  })
+                );
+              }
+            } catch (reloadError) {
+              console.error("Error reloading canvas:", reloadError);
+              // If reload fails, keep the current state
+              console.log("Keeping current canvas state");
+            }
+          } else {
+            console.log("Canvas not found, keeping current state");
+          }
+        }
+      }, 500); // Wait 500ms before sending update to server
     }
-  }, [elements, id]);
+
+    return () => {
+      clearTimeout(updateTimeout);
+    };
+  }, [elements, id, socket, token]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

@@ -4,6 +4,7 @@ import "./index.min.css";
 import { useNavigate } from "react-router-dom";
 import boardContext from "../../store/board-context";
 import { useParams } from "react-router-dom";
+import { initializeSocket, joinCanvas } from "../../utils/socket";
 
 const Sidebar = () => {
   const [canvases, setCanvases] = useState([]);
@@ -56,7 +57,7 @@ const Sidebar = () => {
       // Then fetch from server to ensure we have the latest data
       if (token) {
         axios
-          .get(`https://whiteboard-5lyf.onrender.com/api/canvas/${id}`, {
+          .get(`http://localhost:5000/api/canvas/load/${id}`, {
             headers: {
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
@@ -89,11 +90,13 @@ const Sidebar = () => {
 
   const fetchCanvases = async () => {
     try {
+      console.log("Fetching canvas list...");
       if (!token) {
+        console.log("No token found, returning...");
         return;
       }
       const response = await axios.get(
-        "https://whiteboard-5lyf.onrender.com/api/canvas/list",
+        "http://localhost:5000/api/canvas/list",
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -101,24 +104,23 @@ const Sidebar = () => {
           },
         }
       );
+      console.log("Canvas list fetched:", response.data);
       setCanvases(response.data);
 
       // If we have a canvas ID in the URL, use that
       if (id) {
+        console.log("Using canvas ID from URL:", id);
         setCanvasId(id);
         handleCanvasClick(id);
-      } else if (response.data.length === 0) {
-        const newCanvas = await handleCreateCanvas();
-        if (newCanvas) {
-          setCanvasId(newCanvas._id);
-          handleCanvasClick(newCanvas._id);
-        }
-      } else if (!canvasId && response.data.length > 0) {
+      } else if (response.data.length > 0) {
+        console.log("Using first canvas from list:", response.data[0]._id);
         setCanvasId(response.data[0]._id);
         handleCanvasClick(response.data[0]._id);
       }
     } catch (error) {
+      console.error("Error in fetchCanvases:", error);
       if (error.response?.status === 401) {
+        console.log("Unauthorized access, logging out...");
         localStorage.removeItem("whiteboard_user_token");
         setUserLoginStatus(false);
         navigate("/login");
@@ -156,21 +158,61 @@ const Sidebar = () => {
 
   const handleCreateCanvas = async () => {
     try {
+      console.log("Starting canvas creation...");
       const canvasName = generateRandomName();
+      console.log("Generated canvas name:", canvasName);
+
+      // Create new canvas
+      console.log("Creating new canvas...");
       const response = await axios.post(
-        "https://whiteboard-5lyf.onrender.com/api/canvas/create",
+        "http://localhost:5000/api/canvas/create",
         { name: canvasName },
         {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      console.log(response.data);
-      fetchCanvases();
-      setCanvasId(response.data.canvasId);
-      handleCanvasClick(response.data.canvasId);
+      console.log("Canvas creation response:", response.data);
+
+      // Get the new canvas ID
+      const newCanvasId = response.data.canvasId;
+      console.log("New canvas ID:", newCanvasId);
+
+      // Clear any existing canvas data
+      if (canvasId) {
+        localStorage.removeItem(`canvas_${canvasId}`);
+      }
+
+      // Initialize new canvas state
+      setElements([]);
+      setHistory([]);
+      setCanvasId(newCanvasId);
+
+      // Add the new canvas to the list immediately
+      const newCanvas = {
+        _id: newCanvasId,
+        name: canvasName,
+        elements: [],
+        shared: [],
+        createdAt: new Date().toISOString(),
+      };
+      setCanvases((prevCanvases) => [newCanvas, ...prevCanvases]);
+
+      // Navigate to the new canvas
+      navigate(`/${newCanvasId}`);
+
+      // Join the new canvas room
+      joinCanvas(newCanvasId);
+
+      // Update canvas list from server
+      const updatedList = await axios.get(
+        "http://localhost:5000/api/canvas/list",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      setCanvases(updatedList.data);
     } catch (error) {
       console.error("Error creating canvas:", error);
-      return null;
     }
   };
 
@@ -191,7 +233,7 @@ const Sidebar = () => {
       // Try to update on the server in the background
       axios({
         method: "put",
-        url: `https://whiteboard-5lyf.onrender.com/api/canvas/rename/${canvasId}`,
+        url: `http://localhost:5000/api/canvas/rename/${canvasId}`,
         data: { name: newName },
         headers: {
           Authorization: `Bearer ${token}`,
@@ -226,7 +268,7 @@ const Sidebar = () => {
 
   const handleDeleteCanvas = async (id) => {
     try {
-      await axios.delete(`https://whiteboard-5lyf.onrender.com/api/canvas/delete/${id}`, {
+      await axios.delete(`http://localhost:5000/api/canvas/delete/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       fetchCanvases();
@@ -240,11 +282,36 @@ const Sidebar = () => {
   const handleCanvasClick = async (id) => {
     try {
       if (!token) {
+        console.log("No token found, returning...");
         return;
       }
 
+      console.log("Switching to canvas:", id);
+
+      // Clear any existing canvas data
+      if (canvasId) {
+        console.log("Clearing data for previous canvas:", canvasId);
+        localStorage.removeItem(`canvas_${canvasId}`);
+      }
+
+      // Clear current state
+      setElements([]);
+      setHistory([]);
+
+      // Initialize socket if not already done
+      const socket = initializeSocket();
+      if (!socket) {
+        console.error("Failed to initialize socket");
+        return;
+      }
+
+      // Join the new canvas room
+      joinCanvas(id);
+
+      // Fetch the new canvas data
+      console.log("Fetching canvas data for:", id);
       const response = await axios.get(
-        `https://whiteboard-5lyf.onrender.com/api/canvas/${id}`,
+        `http://localhost:5000/api/canvas/load/${id}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -253,20 +320,28 @@ const Sidebar = () => {
         }
       );
 
-      setCanvasId(id);
-      setElements(response.data.elements || []);
-      setHistory(response.data.history || []);
-      navigate(`/${id}`);
+      if (response.data) {
+        console.log("Canvas data received:", response.data);
 
-      // Save the current canvas state to localStorage
-      localStorage.setItem(
-        `canvas_${id}`,
-        JSON.stringify({
-          elements: response.data.elements || [],
-          history: response.data.history || [],
-        })
-      );
+        // Update the canvas state
+        setCanvasId(id);
+        setElements(response.data.elements || []);
+        setHistory(response.data.history || []);
+
+        // Save the canvas state to localStorage
+        localStorage.setItem(
+          `canvas_${id}`,
+          JSON.stringify({
+            elements: response.data.elements || [],
+            history: response.data.history || [],
+          })
+        );
+
+        // Navigate to the canvas
+        navigate(`/${id}`);
+      }
     } catch (error) {
+      console.error("Error loading canvas:", error);
       if (error.response?.status === 401) {
         localStorage.removeItem("whiteboard_user_token");
         setUserLoginStatus(false);
@@ -296,8 +371,17 @@ const Sidebar = () => {
       setError(""); // Clear previous errors
       setSuccess(""); // Clear previous success message
 
+      // First get the current canvas data to ensure we have the latest elements
+      const canvasResponse = await axios.get(
+        `http://localhost:5000/api/canvas/load/${canvasId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      // Then share the canvas
       const response = await axios.put(
-        `https://whiteboard-5lyf.onrender.com/api/canvas/share/${canvasId}`,
+        `http://localhost:5000/api/canvas/share/${canvasId}`,
         { email },
         {
           headers: { Authorization: `Bearer ${token}` },
