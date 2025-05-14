@@ -102,10 +102,29 @@ const io = new Server(server, {
     optionsSuccessStatus: 204,
   },
   allowEIO3: true,
-  transports: ["polling", "websocket"],
+  transports: ["websocket", "polling"],
   path: "/socket.io/",
   pingTimeout: 60000,
   pingInterval: 25000,
+  connectTimeout: 45000,
+  allowUpgrades: true,
+  maxHttpBufferSize: 1e8,
+  cookie: {
+    name: "io",
+    path: "/",
+    httpOnly: true,
+    sameSite: "lax",
+  },
+});
+
+// Add error handling for the server
+server.on("error", (error) => {
+  console.error("Server error:", error);
+});
+
+// Add error handling for Socket.IO
+io.engine.on("connection_error", (err) => {
+  console.error("Socket.IO connection error:", err);
 });
 
 const canvasData = new Map();

@@ -16,6 +16,9 @@ import axios from "axios";
 
 import classes from "./index.module.css";
 
+// Update the API base URL
+const API_BASE_URL = "https://whiteboard-5lyf.onrender.com";
+
 function Board({ id }) {
   const canvasRef = useRef();
   const textAreaRef = useRef();
@@ -97,7 +100,7 @@ function Board({ id }) {
   }, [id, socket]);
 
   useEffect(() => {
-    const fetchCanvasData = async () => {
+    const loadCanvas = async () => {
       if (id && token) {
         try {
           // Clear any existing canvas data first
@@ -107,7 +110,7 @@ function Board({ id }) {
 
           // Fetch from server
           const response = await axios.get(
-            `http://localhost:5000/api/canvas/load/${id}`,
+            `${API_BASE_URL}/api/canvas/load/${id}`,
             {
               headers: { Authorization: `Bearer ${token}` },
             }
@@ -141,7 +144,7 @@ function Board({ id }) {
       }
     };
 
-    fetchCanvasData();
+    loadCanvas();
   }, [id, token]);
 
   // Save canvas state whenever elements change
@@ -166,17 +169,22 @@ function Board({ id }) {
       clearTimeout(updateTimeout);
       updateTimeout = setTimeout(async () => {
         try {
-          const response = await axios.put(
-            `http://localhost:5000/api/canvas/update`,
-            { canvasId: id, elements },
-            {
-              headers: { Authorization: `Bearer ${token}` },
-            }
-          );
+          const updateCanvas = async (elements) => {
+            await axios.put(
+              `${API_BASE_URL}/api/canvas/update`,
+              {
+                canvasId: id,
+                elements,
+              },
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              }
+            );
+          };
 
-          if (response.status !== 200) {
-            throw new Error("Failed to update canvas");
-          }
+          await updateCanvas(elements);
         } catch (error) {
           console.error("Error updating canvas:", error);
 
@@ -184,7 +192,7 @@ function Board({ id }) {
           if (error.response?.status !== 404) {
             try {
               const response = await axios.get(
-                `http://localhost:5000/api/canvas/load/${id}`,
+                `${API_BASE_URL}/api/canvas/load/${id}`,
                 {
                   headers: { Authorization: `Bearer ${token}` },
                 }

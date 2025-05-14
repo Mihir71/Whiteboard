@@ -6,6 +6,9 @@ import boardContext from "../../store/board-context";
 import { useParams } from "react-router-dom";
 import { initializeSocket, joinCanvas } from "../../utils/socket";
 
+// Update the API base URL
+const API_BASE_URL = "https://whiteboard-5lyf.onrender.com";
+
 const Sidebar = () => {
   const [canvases, setCanvases] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -57,7 +60,7 @@ const Sidebar = () => {
       // Then fetch from server to ensure we have the latest data
       if (token) {
         axios
-          .get(`http://localhost:5000/api/canvas/load/${id}`, {
+          .get(`${API_BASE_URL}/api/canvas/load/${id}`, {
             headers: {
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
@@ -95,15 +98,12 @@ const Sidebar = () => {
         console.log("No token found, returning...");
         return;
       }
-      const response = await axios.get(
-        "http://localhost:5000/api/canvas/list",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      const response = await axios.get(`${API_BASE_URL}/api/canvas/list`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
       console.log("Canvas list fetched:", response.data);
       setCanvases(response.data);
 
@@ -165,7 +165,7 @@ const Sidebar = () => {
       // Create new canvas
       console.log("Creating new canvas...");
       const response = await axios.post(
-        "http://localhost:5000/api/canvas/create",
+        `${API_BASE_URL}/api/canvas/create`,
         { name: canvasName },
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -204,12 +204,9 @@ const Sidebar = () => {
       joinCanvas(newCanvasId);
 
       // Update canvas list from server
-      const updatedList = await axios.get(
-        "http://localhost:5000/api/canvas/list",
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const updatedList = await axios.get(`${API_BASE_URL}/api/canvas/list`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       setCanvases(updatedList.data);
     } catch (error) {
       console.error("Error creating canvas:", error);
@@ -231,17 +228,16 @@ const Sidebar = () => {
       );
 
       // Try to update on the server in the background
-      axios({
-        method: "put",
-        url: `http://localhost:5000/api/canvas/rename/${canvasId}`,
-        data: { name: newName },
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      }).catch((error) => {
-        console.error("Error in rename operation:", error);
-      });
+      await axios.put(
+        `${API_BASE_URL}/api/canvas/rename/${canvasId}`,
+        { name: newName },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       setEditingCanvasId(null);
       setNewCanvasName("");
@@ -268,7 +264,7 @@ const Sidebar = () => {
 
   const handleDeleteCanvas = async (id) => {
     try {
-      await axios.delete(`http://localhost:5000/api/canvas/delete/${id}`, {
+      await axios.delete(`${API_BASE_URL}/api/canvas/delete/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       fetchCanvases();
@@ -311,7 +307,7 @@ const Sidebar = () => {
       // Fetch the new canvas data
       console.log("Fetching canvas data for:", id);
       const response = await axios.get(
-        `http://localhost:5000/api/canvas/load/${id}`,
+        `${API_BASE_URL}/api/canvas/load/${id}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -373,7 +369,7 @@ const Sidebar = () => {
 
       // First get the current canvas data to ensure we have the latest elements
       const canvasResponse = await axios.get(
-        `http://localhost:5000/api/canvas/load/${canvasId}`,
+        `${API_BASE_URL}/api/canvas/load/${canvasId}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -381,7 +377,7 @@ const Sidebar = () => {
 
       // Then share the canvas
       const response = await axios.put(
-        `http://localhost:5000/api/canvas/share/${canvasId}`,
+        `${API_BASE_URL}/api/canvas/share/${canvasId}`,
         { email },
         {
           headers: { Authorization: `Bearer ${token}` },

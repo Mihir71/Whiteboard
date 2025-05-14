@@ -2,13 +2,9 @@ import { io } from "socket.io-client";
 
 let socket = null;
 
-// Determine the environment and set the appropriate socket URL
-const isDevelopment = window.location.hostname === "localhost";
-const SOCKET_URL = isDevelopment
-  ? "http://localhost:5000"
-  : "https://whiteboard-5lyf.onrender.com";
 
-console.log("Environment:", isDevelopment ? "Development" : "Production");
+const SOCKET_URL = "https://whiteboard-5lyf.onrender.com";
+
 console.log("Socket URL:", SOCKET_URL);
 
 export const initializeSocket = () => {
@@ -28,15 +24,19 @@ export const initializeSocket = () => {
         reconnection: true,
         reconnectionAttempts: 5,
         reconnectionDelay: 1000,
-        transports: ["polling", "websocket"],
+        reconnectionDelayMax: 5000,
         timeout: 20000,
-        withCredentials: true,
-        path: "/socket.io/",
-        forceNew: true,
         autoConnect: true,
+        forceNew: true,
+        transports: ["websocket", "polling"],
+        path: "/socket.io/",
+        withCredentials: true,
         extraHeaders: {
           "Access-Control-Allow-Origin": "*",
         },
+        upgrade: true,
+        rememberUpgrade: true,
+        rejectUnauthorized: false,
       });
 
       socket.on("connect", () => {
